@@ -1,12 +1,11 @@
 #include <Windows.h>
+#include <shellapi.h>
 #include <MMDeviceAPI.h>
 #include <Endpointvolume.h>
 #include <thread>
 #include <cstdio>
 #include <mmsystem.h>
 
-// #pragma comment(lib, "lole32.lib")
-// #pragma comment(linker, "/subsystem:\"windows\" /entry:\"mainCRTStartup\"")
 #define ID_BUTTON_CHANGEKEY 1 // 更改绑定的按键按钮的标识符
 #define ID_EDIT_KEY 2         // 更改绑定的按键编辑框的标识符
 #define ID_BUTTON_CONFIRM 3   // 确认更改按钮的标识符
@@ -236,7 +235,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // 在窗口创建时创建改绑按钮
     HWND hwndChangeButton = CreateWindow(
         "BUTTON",                                              // 预定义的按钮类名
-        "更改绑定的按键",                                      // 按钮的文本
+        "改绑",                                                // 按钮的文本
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, // 按钮的样式
         10,                                                    // 按钮的初始x坐标
         10,                                                    // 按钮的初始y坐标
@@ -247,7 +246,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE),     // 应用程序实例的句柄
         NULL                                                   // 创建参数
     );
-    // 在窗口创建时创建隐藏的编辑框和按钮
+    // 在窗口创建时创建隐藏的编辑框和确认按钮
     HWND hwndEdit = CreateWindow(
         "EDIT",
         "",
@@ -289,7 +288,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
-
+    ShowWindow(hwndChangeButton, SW_SHOW);
+    UpdateWindow(hwndChangeButton);
     MSG msg = {};
     while (GetMessage(&msg, NULL, 0, 0))
     {
