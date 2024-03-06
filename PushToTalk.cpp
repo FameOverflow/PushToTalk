@@ -7,7 +7,34 @@
 #include "MMDeviceAPI.h"
 #include "endpointvolume.h"
 #include "shellapi.h"
+#include <stdio.h>
+#include <stdarg.h>
+
+using namespace std;
 #define MAX_LOADSTRING 100
+
+
+#define IS_USE_OUTPUT_DEBUG_PRINT   1
+
+#if  IS_USE_OUTPUT_DEBUG_PRINT 
+
+#define  OUTPUT_DEBUG_PRINTF(str)  OutputDebugPrintf(str)
+void OutputDebugPrintf(const char* strOutputString, ...)
+{
+#define PUT_PUT_DEBUG_BUF_LEN   1024
+    char strBuffer[PUT_PUT_DEBUG_BUF_LEN] = { 0 };
+    va_list vlArgs;
+    va_start(vlArgs, strOutputString);
+    _vsnprintf_s(strBuffer, sizeof(strBuffer) - 1, strOutputString, vlArgs);  //_vsnprintf_s  _vsnprintf
+    //vsprintf(strBuffer,strOutputString,vlArgs);
+    va_end(vlArgs);
+    OutputDebugStringA(strBuffer);  //OutputDebugString    // OutputDebugStringW
+
+}
+#else 
+#define  OUTPUT_DEBUG_PRINTF(str) 
+#endif
+
 NOTIFYICONDATA nid;           // 通知区域图标的数据结构
 // 全局变量:
 HINSTANCE hInst;                                // 当前实例
@@ -26,6 +53,7 @@ int windowY = (screenHeight - windowHeight) / 2;
 
 WCHAR key[100] = L"XBUTTON1"; // 绑定的按键
 bool g_isEditFocused = false; // 用于保存输入框是否有焦点的标志
+HWND hWnd;
 HWND hwndEdit;
 HWND hwndChangeButton;
 HWND hwndConfirmButton;
@@ -95,6 +123,12 @@ LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
         case WM_XBUTTONDOWN:
             // 鼠标侧键被按下，取消静音
             SetMicrophoneMute(false);
+            OutputDebugPrintf("g_isEditFocused: %d\n", g_isEditFocused);
+            OutputDebugPrintf("mouseData: %d\n", ((MOUSEHOOKSTRUCTEX*)lParam)->mouseData);
+            OutputDebugPrintf("KEYSTATE_WPARAM: %d\n", GET_KEYSTATE_WPARAM(wParam));
+            OutputDebugPrintf("XBUTTON_WPARAM: %d\n",GET_XBUTTON_WPARAM(wParam));
+
+            SetWindowText(hwndEdit, L"鼠标侧键1");
             if (g_isEditFocused)
             {
                 if (((MOUSEHOOKSTRUCTEX*)lParam)->mouseData == XBUTTON1)
@@ -242,7 +276,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // 将实例句柄存储在全局变量中
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+   hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
       windowX, windowY, windowWidth, windowHeight, nullptr, nullptr, hInstance, nullptr);
    // 在窗口创建时创建改绑按钮
    hwndChangeButton = CreateWindow( 
@@ -329,14 +363,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 DestroyWindow(hWnd);
                 break;
             case ID_BUTTON_CHANGEKEY:
+                g_isEditFocused = true;
 				ShowWindow(hwndEdit, SW_SHOW);
 				ShowWindow(hwndConfirmButton, SW_SHOW);
 				break;  
             case ID_BUTTON_CONFIRM:
-                GetWindowText(hwndEdit, key, sizeof(key));
+                GetWindowText(hwndEdit, key, 99);
                 MessageBox(hWnd, key, L"按键", MB_OK);
                 ShowWindow(hwndEdit, SW_HIDE);
                 ShowWindow(hwndConfirmButton, SW_HIDE);
+                g_isEditFocused = false;
                 break;
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
@@ -365,20 +401,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // TODO: 在此处添加使用 hdc 的任何绘图代码...
             EndPaint(hWnd, &ps);
         }
-        break;
-    case WM_SETFOCUS:
-        // 输入框获取焦点，设置标志
-        if ((HWND)wParam == hwndEdit)
-        {
-            g_isEditFocused = true;
-        };
-        break;
-    case WM_KILLFOCUS:
-        // 输入框失去焦点，清除标志
-        if ((HWND)wParam == hwndEdit)
-        {
-            g_isEditFocused = false;
-        };
         break;
     case WM_DESTROY:
         PostQuitMessage(0);
