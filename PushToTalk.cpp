@@ -41,19 +41,21 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
 #define ID_BUTTON_CHANGEKEY 130 // 更改绑定的按键按钮的标识符
 #define ID_EDIT_KEY 131         // 更改绑定的按键编辑框的标识符
 #define ID_BUTTON_CONFIRM 133   // 确认更改按钮的标识符
-
+#define ID_BUTTON_SWIFT 134     // 切换按钮的标识符
 int screenWidth = GetSystemMetrics(SM_CXSCREEN);
 int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 int windowWidth = 350;  // 窗口的宽度
 int windowHeight = 150; // 窗口的高度
 int windowX = (screenWidth - windowWidth) / 2;
 int windowY = (screenHeight - windowHeight) / 2;
-
+bool g_isMuted = false; // 麦克风静音状态
+bool Mode = false;      // 模式默认为false,即按下按键时取消静音
 WCHAR key[100] = L"XBUTTON1"; // 绑定的按键
-HWND hWnd;
-HWND hwndEdit;
-HWND hwndChangeButton;
-HWND hwndConfirmButton;
+HWND hWnd;				// 主窗口
+HWND hwndEdit;          // 更改绑定的按键编辑框
+HWND hwndChangeButton;  // 更改绑定的按键按钮
+HWND hwndConfirmButton; // 确认更改按钮
+HWND hwndSwiftButton;   // 切换按钮
 HHOOK hHook;
 HHOOK hKeyboardEditHook;
 HHOOK hMouseEdithook;
@@ -68,7 +70,67 @@ LRESULT CALLBACK    KeyboardEditProc(int, WPARAM, LPARAM);
 LRESULT CALLBACK    EditProc(HWND, UINT, WPARAM, LPARAM);
 void SetMicrophoneMute(bool mute);
 void PrintKey(WPARAM wParam);
+void GetMicrophoneMute()
+{
+    HRESULT hr = CoInitialize(NULL);
+    if (FAILED(hr))
+    {
+        // 处理初始化失败的情况
+        return;
+    }
 
+    IMMDeviceEnumerator* pEnumerator = NULL;
+    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
+    if (FAILED(hr))
+    {
+        // 处理创建设备枚举器失败的情况
+        OutputDebugPrintf("CoCreateInstance failed\n");
+        CoUninitialize();
+        return;
+    }
+
+    IMMDevice* pDevice = NULL;
+    hr = pEnumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &pDevice);
+    if (FAILED(hr))
+    {
+        // 处理获取默认音频设备失败的情况
+        OutputDebugPrintf("GetDefaultAudioEndpoint failed\n");
+        pEnumerator->Release();
+        CoUninitialize();
+        return;
+    }
+
+    IAudioEndpointVolume* pEndpointVolume = NULL;
+    hr = pDevice->Activate(__uuidof(IAudioEndpointVolume), CLSCTX_ALL, NULL, (void**)&pEndpointVolume);
+    if (FAILED(hr))
+    {
+        // 处理获取音频端点音量控制失败的情况
+        OutputDebugPrintf("Activate failed\n");
+        pDevice->Release();
+        pEnumerator->Release();
+        CoUninitialize();
+        return;
+    }
+
+    BOOL mute;
+    hr = pEndpointVolume->GetMute(&mute);
+    if (FAILED(hr))
+    {
+        // 处理获取静音状态失败的情况
+        OutputDebugPrintf("GetMute failed\n");
+    }
+    else
+    {
+        // 如果获取静音状态成功，更新全局变量
+        g_isMuted = mute != 0;
+    }
+
+    // 释放资源
+    pEndpointVolume->Release();
+    pDevice->Release();
+    pEnumerator->Release();
+    CoUninitialize();
+}
 void SetMicrophoneMute(bool mute)
 {
     HRESULT hr = CoInitialize(NULL);
@@ -117,6 +179,11 @@ void SetMicrophoneMute(bool mute)
         // 处理设置静音状态失败的情况
         OutputDebugPrintf("SetMute failed\n");
     }
+    else
+    {
+		// 如果设置静音状态成功，更新全局变量
+		g_isMuted = mute;
+	}
 
     // 释放资源
     pEndpointVolume->Release();
@@ -141,6 +208,20 @@ LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
     }
     return CallNextHookEx(hHook, nCode, wParam, lParam);
 }
+LRESULT CALLBACK MouseSwiftProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode >= 0)
+    {
+        switch (wParam)
+        {
+        case WM_XBUTTONDOWN:
+            // 按下鼠标侧键时，切换静音状态
+            SetMicrophoneMute(!g_isMuted);
+            break;
+        }
+    }
+    return CallNextHookEx(hHook, nCode, wParam, lParam);
+}
 LRESULT CALLBACK MouseEditProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
@@ -148,19 +229,21 @@ LRESULT CALLBACK MouseEditProc(int nCode, WPARAM wParam, LPARAM lParam)
         switch (wParam)
         {
 		case WM_XBUTTONDOWN:
-            OutputDebugPrintf("mouseData: %d\n", ((MOUSEHOOKSTRUCTEX*)lParam)->mouseData);
-            OutputDebugPrintf("KEYSTATE_WPARAM: %d\n", GET_KEYSTATE_WPARAM(wParam));
-            OutputDebugPrintf("XBUTTON_WPARAM: %d\n", GET_XBUTTON_WPARAM(wParam));
-                if (GET_XBUTTON_WPARAM(wParam) == XBUTTON1)
-                {
-                    OutputDebugPrintf("XBUTTON1 was pressed\n");
-                    SetWindowText(hwndEdit, L"XBUTTON1");
-                }
-                else if (GET_XBUTTON_WPARAM(wParam) == XBUTTON2)
-                {
-                    OutputDebugPrintf("XBUTTON2 was pressed\n");
-                    SetWindowText(hwndEdit, L"XBUTTON2");
-                }
+            //OutputDebugPrintf("mouseData: %d\n", ((MOUSEHOOKSTRUCTEX*)lParam)->mouseData);
+            //OutputDebugPrintf("KEYSTATE_WPARAM: %d\n", GET_KEYSTATE_WPARAM(wParam));
+            //OutputDebugPrintf("XBUTTON_WPARAM: %d\n", GET_XBUTTON_WPARAM(wParam));
+            //    if (GET_XBUTTON_WPARAM(wParam) == XBUTTON1)
+            //    {
+            //        OutputDebugPrintf("XBUTTON1 was pressed\n");
+            //        SetWindowText(hwndEdit, L"XBUTTON1");
+            //    }
+            //    else if (GET_XBUTTON_WPARAM(wParam) == XBUTTON2)
+            //    {
+            //        OutputDebugPrintf("XBUTTON2 was pressed\n");
+            //        SetWindowText(hwndEdit, L"XBUTTON2");
+            //    }
+            //    暂未找到区分鼠标侧键的方法,目前统一设置为XBUTTON1
+            SetWindowText(hwndEdit, L"XBUTTON1");
 			break;
 		}
 	}
@@ -299,11 +382,20 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
         L"BUTTON",
         L"确认",
         WS_TABSTOP | WS_CHILD | BS_DEFPUSHBUTTON,
-        120, 50, 50, 25,
+        120, 10, 100, 30,
         hWnd,
         (HMENU)ID_BUTTON_CONFIRM,
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
+    hwndSwiftButton = CreateWindow(
+		L"BUTTON",
+		L"切换",
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+		130, 10, 100, 30,
+		hWnd,
+		(HMENU)ID_BUTTON_SWIFT,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
 
     if (!hWnd)
     {
@@ -371,7 +463,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, hInst, 0);
             }
             break;
-        case ID_EDIT_KEY: {
+        case ID_EDIT_KEY: 
             switch (HIWORD(wParam)) {
             case EN_SETFOCUS:
                 OutputDebugPrintf("EN_SETFOCUS\n");
@@ -384,8 +476,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 OutputDebugPrintf("EN_KILLFOCUS\n");
                 break;
             }
-        }
-                        break;
+             break;
+        case ID_BUTTON_SWIFT:
+            if (Mode == false) {
+                UnhookWindowsHookEx(hHook);
+                hHook = SetWindowsHookEx(WH_MOUSE_LL, MouseSwiftProc, hInst, 0);
+            }
+            else {
+                UnhookWindowsHookEx(hHook);
+                hHook = SetWindowsHookEx(WH_KEYBOARD_LL, MouseProc, hInst, 0);
+            }
+            
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
         }
@@ -458,7 +559,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             DispatchMessage(&msg);
         }
     }
-    SetMicrophoneMute(true);
+    SetMicrophoneMute(false);
     UnhookWindowsHookEx(hHook);
     OutputDebugPrintf("UnhookWindowsExhHook\n");
     return (int) msg.wParam;
