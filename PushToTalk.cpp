@@ -42,9 +42,10 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
 #define ID_EDIT_KEY 131         // 更改绑定的按键编辑框的标识符
 #define ID_BUTTON_CONFIRM 133   // 确认更改按钮的标识符
 #define ID_BUTTON_SWIFT 134     // 切换按钮的标识符
+#define ID_BUTTON_MONITOR 135   // 监控按钮的标识符
 int screenWidth = GetSystemMetrics(SM_CXSCREEN);
 int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-int windowWidth = 350;  // 窗口的宽度
+int windowWidth = 380;  // 窗口的宽度
 int windowHeight = 150; // 窗口的高度
 int windowX = (screenWidth - windowWidth) / 2;
 int windowY = (screenHeight - windowHeight) / 2;
@@ -56,6 +57,7 @@ HWND hwndEdit;          // 更改绑定的按键编辑框
 HWND hwndChangeButton;  // 更改绑定的按键按钮
 HWND hwndConfirmButton; // 确认更改按钮
 HWND hwndSwiftButton;   // 切换按钮
+HWND hwndMonitorButton; // 监控按钮
 HHOOK hHook;
 HHOOK hKeyboardEditHook;
 HHOOK hMouseEdithook;
@@ -207,7 +209,7 @@ LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
         }
     }
     return CallNextHookEx(hHook, nCode, wParam, lParam);
-}
+}       //初始模式按住按键发言
 LRESULT CALLBACK MouseSwiftProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
@@ -221,7 +223,7 @@ LRESULT CALLBACK MouseSwiftProc(int nCode, WPARAM wParam, LPARAM lParam)
         }
     }
     return CallNextHookEx(hHook, nCode, wParam, lParam);
-}
+}	   //切换模式为按下按键切换是否静音
 LRESULT CALLBACK MouseEditProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
@@ -248,7 +250,7 @@ LRESULT CALLBACK MouseEditProc(int nCode, WPARAM wParam, LPARAM lParam)
 		}
 	}
 	return CallNextHookEx(hHook, nCode, wParam, lParam);
-}
+}//用于编辑框改绑
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
@@ -278,7 +280,25 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
     }
 
     return CallNextHookEx(hHook, nCode, wParam, lParam);
-}
+}//初始模式按住按键发言
+LRESULT CALLBACK KeyboardSwiftProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode >= 0)
+    {
+        switch (wParam)
+        {
+		case WM_KEYDOWN:
+			// 检查是否是用户输入的按键被按下
+            if (((KBDLLHOOKSTRUCT*)lParam)->vkCode == static_cast<DWORD>(VkKeyScan(*key)))
+            {
+				// 切换静音状态
+				SetMicrophoneMute(!g_isMuted);
+			}
+			break;
+		}
+	}
+	return CallNextHookEx(hHook, nCode, wParam, lParam);
+}//切换模式为按下按键切换是否静音
 void PrintKey(WPARAM wParam) {
     wchar_t keyText[2];
     keyText[0] = L'\0';
@@ -359,7 +379,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
         L"改绑",                                                // 按钮的文本
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, // 按钮的样式
         10,                                                    // 按钮的初始x坐标
-        10,                                                    // 按钮的初始y坐标
+        30,                                                    // 按钮的初始y坐标
         100,                                                   // 按钮的宽度
         30,                                                    // 按钮的高度
         hWnd,                                                  // 父窗口的句柄
@@ -372,7 +392,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
         L"EDIT",
         L"",
         WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
-        10, 50, 100, 25,
+        10, 70, 100, 25,
         hWnd,
         (HMENU)ID_EDIT_KEY,
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
@@ -382,7 +402,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
         L"BUTTON",
         L"确认",
         WS_TABSTOP | WS_CHILD | BS_DEFPUSHBUTTON,
-        120, 10, 100, 30,
+        120, 70, 100, 30,
         hWnd,
         (HMENU)ID_BUTTON_CONFIRM,
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
@@ -391,12 +411,20 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 		L"BUTTON",
 		L"切换",
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-		130, 10, 100, 30,
+		130, 30, 100, 30,
 		hWnd,
 		(HMENU)ID_BUTTON_SWIFT,
 		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
 		NULL);
-
+    hwndMonitorButton = CreateWindow(
+		L"BUTTON",
+		L"监控",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+		250, 30, 100, 30,
+		hWnd,
+		(HMENU)ID_BUTTON_MONITOR,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
     if (!hWnd)
     {
         return FALSE;
@@ -480,13 +508,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         case ID_BUTTON_SWIFT:
             if (Mode == false) {
                 UnhookWindowsHookEx(hHook);
+                if (key == L"XBUTTON1" || key == L"XBUTTON2")
+                {
                 hHook = SetWindowsHookEx(WH_MOUSE_LL, MouseSwiftProc, hInst, 0);
+                }
+                else {
+                    hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardSwiftProc, hInst, 0);
+                }
             }
             else {
                 UnhookWindowsHookEx(hHook);
-                hHook = SetWindowsHookEx(WH_KEYBOARD_LL, MouseProc, hInst, 0);
+                if (key == L"XBUTTON1" || key == L"XBUTTON2")
+                {
+					hHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, hInst, 0);
+				}
+                else {
+					hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, hInst, 0);
+				}
             }
-            
+        case ID_BUTTON_MONITOR:
+
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
         }
@@ -508,13 +549,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         break;
     case WM_PAINT:
-    {
+        {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hWnd, &ps);
         // TODO: 在此处添加使用 hdc 的任何绘图代码...
         EndPaint(hWnd, &ps);
-    }
-    break;
+        }
+        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         Shell_NotifyIcon(NIM_DELETE, &nid);
