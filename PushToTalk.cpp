@@ -38,12 +38,14 @@ NOTIFYICONDATA nid;           // 通知区域图标的数据结构
 HINSTANCE hInst;                                // 当前实例
 WCHAR szTitle[MAX_LOADSTRING];                  // 标题栏文本
 WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
+WCHAR monitorWindowClass[MAX_LOADSTRING];       // 监控窗口类名
 #define ID_BUTTON_CHANGEKEY 130 // 更改绑定的按键按钮的标识符
 #define ID_EDIT_KEY 131         // 更改绑定的按键编辑框的标识符
 #define ID_BUTTON_CONFIRM 133   // 确认更改按钮的标识符
 #define ID_BUTTON_SWIFT 134     // 切换按钮的标识符
 #define ID_BUTTON_MONITOR 135   // 监控按钮的标识符
 #define ID_WINDOW_MONITOR 136   // 监控窗口的标识符
+#define ID_MIC_MONITOR 140      // 麦克风监控的标识符
 int screenWidth = GetSystemMetrics(SM_CXSCREEN);
 int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 int windowWidth = 380;  // 窗口的宽度
@@ -52,6 +54,7 @@ int windowX = (screenWidth - windowWidth) / 2;
 int windowY = (screenHeight - windowHeight) / 2;
 bool g_isMuted = false; // 麦克风静音状态
 bool Mode = false;      // 模式默认为false,即按下按键时取消静音
+bool is_Monitor_Showed = false; // 监控窗口是否显示
 WCHAR key[100] = L"XBUTTON1"; // 绑定的按键
 HWND hWnd;				// 主窗口
 HWND hwndEdit;          // 更改绑定的按键编辑框
@@ -60,11 +63,14 @@ HWND hwndConfirmButton; // 确认更改按钮
 HWND hwndSwiftButton;   // 切换按钮
 HWND hwndMonitorButton; // 监控按钮
 HWND MonitorWindow;     // 监控窗口
+HWND micMonitor;        // 麦克风监控
+
 HHOOK hHook;
 HHOOK hKeyboardEditHook;
 HHOOK hMouseEdithook;
 // 此代码模块中包含的函数的前向声明:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
+ATOM                MyRegisterMonitorClass(HINSTANCE h);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK    MouseProc(int, WPARAM, LPARAM);
@@ -72,6 +78,7 @@ LRESULT CALLBACK    KeyboardProc(int, WPARAM, LPARAM);
 LRESULT CALLBACK    MouseEditProc(int, WPARAM, LPARAM);
 LRESULT CALLBACK    KeyboardEditProc(int, WPARAM, LPARAM);
 LRESULT CALLBACK    EditProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK    MonitorProc(HWND, UINT, WPARAM, LPARAM);
 void SetMicrophoneMute(bool mute);
 void PrintKey(WPARAM wParam);
 void GetMicrophoneMute()
@@ -195,20 +202,7 @@ void SetMicrophoneMute(bool mute)
     pEnumerator->Release();
     CoUninitialize();
 }
-void ShowMonitorWindow()
-{
-    MonitorWindow = CreateWindow(
-		L"STATIC",
-		L"监控窗口",
-		WS_OVERLAPPEDWINDOW,
-		0, 0, 200, 200,
-		NULL,
-		NULL,
-		hInst,
-		NULL
-	);
-	ShowWindow(MonitorWindow, SW_SHOW);
-}
+
 LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
@@ -372,6 +366,26 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     return RegisterClassExW(&wcex);
 }
 
+ATOM MyRegisterMonitorClass(HINSTANCE hInstance)
+{
+    WNDCLASSEXW wcex;
+
+    wcex.cbSize = sizeof(WNDCLASSEX);
+
+    wcex.style = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc = MonitorProc;
+    wcex.cbClsExtra = 0;
+    wcex.cbWndExtra = 0;
+    wcex.hInstance = hInstance;
+    wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON1));
+    wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_PUSHTOTALK);
+    wcex.lpszClassName = monitorWindowClass;
+    wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_ICON1));
+
+    return RegisterClassExW(&wcex);
+}
 //
 //   函数: InitInstance(HINSTANCE, int)
 //
@@ -440,6 +454,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 		(HMENU)ID_BUTTON_MONITOR,
 		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
 		NULL);
+    MonitorWindow = CreateWindow(
+        monitorWindowClass,
+        L"",
+        WS_OVERLAPPEDWINDOW,// 无标题栏、无操作项
+        screenWidth - 680, 50, 650, 450,
+        nullptr,
+        nullptr,
+        hInst,
+        nullptr
+    );    
     if (!hWnd)
     {
         return FALSE;
@@ -447,7 +471,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
-
+    UpdateWindow(MonitorWindow);
     return TRUE;
 }
 
@@ -541,8 +565,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, hInst, 0);
 				}
             }
+            break;
         case ID_BUTTON_MONITOR:
-
+            if (is_Monitor_Showed == false)
+            {
+                ShowWindow(MonitorWindow, SW_SHOW);
+                is_Monitor_Showed = true;
+			}
+            else
+            {
+				ShowWindow(MonitorWindow, SW_HIDE);
+				is_Monitor_Showed = false;
+			}
+            break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
         }
@@ -580,7 +615,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     }
     return 0;
 }
-
+LRESULT CALLBACK MonitorProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    static HBITMAP hBitmap;
+    static int     cxClient, cyClient, cxSource, cySource;
+    BITMAP         bitmap;
+    HDC            hdc, hdcMem;
+    HINSTANCE      hInstance;
+    PAINTSTRUCT    ps;
+    switch(message){ 
+    case(WM_CREATE):
+        hInstance = ((LPCREATESTRUCT)lParam)->hInstance;
+        hBitmap = (HBITMAP)LoadImageW(hInstance, L"sample_640×426.bmp", IMAGE_BITMAP, 640, 426, LR_LOADFROMFILE);
+        GetObject(hBitmap, sizeof(BITMAP), &bitmap);
+        cxSource = bitmap.bmWidth;
+        cySource = bitmap.bmHeight;
+        break;
+    case(WM_PAINT):
+        hdc = BeginPaint(hWnd, &ps);
+        hdcMem = CreateCompatibleDC(hdc); 
+        SelectObject(hdcMem, hBitmap);
+        BitBlt(hdc, 10, 10, cxSource, cySource, hdcMem, 0, 0, SRCCOPY); 
+        DeleteDC(hdcMem);
+        EndPaint(hWnd, &ps);
+        break;
+    case(WM_DESTROY): 
+        DeleteObject(hBitmap);
+        PostQuitMessage(0);
+        return 0;
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+}
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -595,8 +660,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // 初始化全局字符串
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_PUSHTOTALK, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
-
+    LoadStringW(hInstance, IDC_Monitor, monitorWindowClass, MAX_LOADSTRING);
+    MyRegisterClass(hInstance);//主窗口类注册
+    MyRegisterMonitorClass(hInstance);//监控窗口类注册
     // 执行应用程序初始化:
     if (!InitInstance(hInstance, nCmdShow))
     {

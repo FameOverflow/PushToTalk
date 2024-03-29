@@ -38,4 +38,15 @@
       <Filter>资源文件</Filter>
     </ResourceCompile>
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="mic.ico">
+      <Filter>资源文件</Filter>
+    </Image>
+    <Image Include="micOff.bmp">
+      <Filter>资源文件</Filter>
+    </Image>
+    <Image Include="micOn.bmp">
+      <Filter>资源文件</Filter>
+    </Image>
+  </ItemGroup>
 </Project>
