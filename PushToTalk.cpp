@@ -43,6 +43,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
 #define ID_BUTTON_CONFIRM 133   // 确认更改按钮的标识符
 #define ID_BUTTON_SWIFT 134     // 切换按钮的标识符
 #define ID_BUTTON_MONITOR 135   // 监控按钮的标识符
+#define ID_WINDOW_MONITOR 136   // 监控窗口的标识符
 int screenWidth = GetSystemMetrics(SM_CXSCREEN);
 int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 int windowWidth = 380;  // 窗口的宽度
@@ -58,6 +59,7 @@ HWND hwndChangeButton;  // 更改绑定的按键按钮
 HWND hwndConfirmButton; // 确认更改按钮
 HWND hwndSwiftButton;   // 切换按钮
 HWND hwndMonitorButton; // 监控按钮
+HWND MonitorWindow;     // 监控窗口
 HHOOK hHook;
 HHOOK hKeyboardEditHook;
 HHOOK hMouseEdithook;
@@ -193,7 +195,20 @@ void SetMicrophoneMute(bool mute)
     pEnumerator->Release();
     CoUninitialize();
 }
-
+void ShowMonitorWindow()
+{
+    MonitorWindow = CreateWindow(
+		L"STATIC",
+		L"监控窗口",
+		WS_OVERLAPPEDWINDOW,
+		0, 0, 200, 200,
+		NULL,
+		NULL,
+		hInst,
+		NULL
+	);
+	ShowWindow(MonitorWindow, SW_SHOW);
+}
 LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
@@ -565,6 +580,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     }
     return 0;
 }
+
+
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
                      _In_ LPWSTR    lpCmdLine,
