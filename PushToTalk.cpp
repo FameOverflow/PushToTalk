@@ -13,74 +13,80 @@
 using namespace std;
 #define MAX_LOADSTRING 100
 
-
-#define IS_USE_OUTPUT_DEBUG_PRINT   1
-#if  IS_USE_OUTPUT_DEBUG_PRINT 
-#define  OUTPUT_DEBUG_PRINTF(str)  OutputDebugPrintf(str)
+// 用于输出调试信息
+#define IS_USE_OUTPUT_DEBUG_PRINT 1
+#if IS_USE_OUTPUT_DEBUG_PRINT
+#define OUTPUT_DEBUG_PRINTF(str) OutputDebugPrintf(str)
 void OutputDebugPrintf(const char* strOutputString, ...)
 {
-#define PUT_PUT_DEBUG_BUF_LEN   1024
+#define PUT_PUT_DEBUG_BUF_LEN 1024
     char strBuffer[PUT_PUT_DEBUG_BUF_LEN] = { 0 };
     va_list vlArgs;
     va_start(vlArgs, strOutputString);
-    _vsnprintf_s(strBuffer, sizeof(strBuffer) - 1, strOutputString, vlArgs);  //_vsnprintf_s  _vsnprintf
-    //vsprintf(strBuffer,strOutputString,vlArgs);
+    _vsnprintf_s(strBuffer, sizeof(strBuffer) - 1, strOutputString, vlArgs);
+    // vsprintf(strBuffer,strOutputString,vlArgs);
     va_end(vlArgs);
-    OutputDebugStringA(strBuffer);  //OutputDebugString    // OutputDebugStringW
-
+    OutputDebugStringA(strBuffer); // OutputDebugString    // OutputDebugStringW
 }
-#else 
-#define  OUTPUT_DEBUG_PRINTF(str) 
+#else
+#define OUTPUT_DEBUG_PRINTF(str)
 #endif
 
-NOTIFYICONDATA nid;           // 通知区域图标的数据结构
+NOTIFYICONDATA nid; // 通知区域图标的数据结构
 // 全局变量:
-HINSTANCE hInst;                                // 当前实例
-WCHAR szTitle[MAX_LOADSTRING];                  // 标题栏文本
-WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
-WCHAR monitorWindowClass[MAX_LOADSTRING];       // 监控窗口类名
-#define ID_BUTTON_CHANGEKEY 130 // 更改绑定的按键按钮的标识符
-#define ID_EDIT_KEY 131         // 更改绑定的按键编辑框的标识符
-#define ID_BUTTON_CONFIRM 133   // 确认更改按钮的标识符
-#define ID_BUTTON_SWIFT 134     // 切换按钮的标识符
-#define ID_BUTTON_MONITOR 135   // 监控按钮的标识符
-#define ID_WINDOW_MONITOR 136   // 监控窗口的标识符
-#define ID_MIC_MONITOR 140      // 麦克风监控的标识符
-int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-int windowWidth = 380;  // 窗口的宽度
-int windowHeight = 150; // 窗口的高度
-int windowX = (screenWidth - windowWidth) / 2;
-int windowY = (screenHeight - windowHeight) / 2;
-bool g_isMuted = false; // 麦克风静音状态
-bool Mode = false;      // 模式默认为false,即按下按键时取消静音
-bool is_Monitor_Showed = false; // 监控窗口是否显示
-WCHAR key[100] = L"XBUTTON1"; // 绑定的按键
-HWND hWnd;				// 主窗口
-HWND hwndEdit;          // 更改绑定的按键编辑框
-HWND hwndChangeButton;  // 更改绑定的按键按钮
-HWND hwndConfirmButton; // 确认更改按钮
-HWND hwndSwiftButton;   // 切换按钮
-HWND hwndMonitorButton; // 监控按钮
-HWND MonitorWindow;     // 监控窗口
-HWND micMonitor;        // 麦克风监控
+HINSTANCE hInst;                                  // 当前实例
+WCHAR szTitle[MAX_LOADSTRING];                    // 标题栏文本
+WCHAR szWindowClass[MAX_LOADSTRING];              // 主窗口类名
+WCHAR monitorWindowClass[MAX_LOADSTRING];         // 监控窗口类名
+WCHAR key[100] = L"XBUTTON1";                     // 绑定的按键
+HWND hWnd;                                        // 主窗口
+HWND hwndEdit;                                    // 更改绑定的按键编辑框
+HWND hwndChangeButton;                            // 更改绑定的按键按钮
+HWND hwndConfirmButton;                           // 确认更改按钮
+HWND hwndSwiftButton;                             // 切换按钮
+HWND hwndMonitorButton;                           // 监控按钮
+HWND MonitorWindow;                               // 监控窗口
+HWND micMonitor;                                  // 麦克风监控
+HHOOK hHook;                                      // 主钩子，监测按键
+HHOOK hKeyboardEditHook;                          // 编辑框钩子
+HHOOK hMouseEdithook;                             // 编辑框鼠标钩子
+#define ID_BUTTON_CHANGEKEY 130                   // 更改绑定的按键按钮的标识符
+#define ID_EDIT_KEY 131                           // 更改绑定的按键编辑框的标识符
+#define ID_BUTTON_CONFIRM 133                     // 确认更改按钮的标识符
+#define ID_BUTTON_SWIFT 134                       // 切换按钮的标识符
+#define ID_BUTTON_MONITOR 135                     // 监控按钮的标识符
+#define ID_WINDOW_MONITOR 136                     // 监控窗口的标识符
+#define ID_MIC_MONITOR 140                        // 麦克风监控的标识符
+int screenWidth = GetSystemMetrics(SM_CXSCREEN);  // 屏幕宽度
+int screenHeight = GetSystemMetrics(SM_CYSCREEN); // 屏幕高度
+int windowWidth = 380;                            // 窗口的宽度
+int windowHeight = 150;                           // 窗口的高度
+int windowX = (screenWidth - windowWidth) / 2;    // 窗口的x坐标
+int windowY = (screenHeight - windowHeight) / 2;  // 窗口的y坐标
+bool g_isMuted = false;                           // 麦克风静音状态
+bool Mode = false;                                // 模式默认为false,即按下按键时取消静音
+bool is_Monitor_Showed = false;                   // 监控窗口是否显示
 
-HHOOK hHook;
-HHOOK hKeyboardEditHook;
-HHOOK hMouseEdithook;
 // 此代码模块中包含的函数的前向声明:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
-ATOM                MyRegisterMonitorClass(HINSTANCE h);
-BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-LRESULT CALLBACK    MouseProc(int, WPARAM, LPARAM);
-LRESULT CALLBACK    KeyboardProc(int, WPARAM, LPARAM);
-LRESULT CALLBACK    MouseEditProc(int, WPARAM, LPARAM);
-LRESULT CALLBACK    KeyboardEditProc(int, WPARAM, LPARAM);
-LRESULT CALLBACK    EditProc(HWND, UINT, WPARAM, LPARAM);
-LRESULT CALLBACK    MonitorProc(HWND, UINT, WPARAM, LPARAM);
-void SetMicrophoneMute(bool mute);
-void PrintKey(WPARAM wParam);
+ATOM MyRegisterClass(HINSTANCE hInstance);      // 注册主窗口类
+ATOM MyRegisterMonitorClass(HINSTANCE h);       // 注册监控窗口类
+BOOL InitInstance(HINSTANCE, int);              // 创建主窗口
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);       // 主窗口的消息处理程序
+LRESULT CALLBACK MouseProc(int, WPARAM, LPARAM);            // 鼠标钩子处理程序
+LRESULT CALLBACK MouseEditProc(int, WPARAM, LPARAM);        // 鼠标编辑框钩子处理程序
+LRESULT CALLBACK MouseSwiftProc(int, WPARAM, LPARAM);       // 鼠标钩子处理程序
+
+LRESULT CALLBACK KeyboardProc(int, WPARAM, LPARAM);         // 键盘钩子处理程序
+LRESULT CALLBACK KeyboardEditProc(int, WPARAM, LPARAM);         // 键盘编辑框钩子处理程序
+LRESULT CALLBACK KeyboardSwiftProc(int, WPARAM, LPARAM);    // 键盘钩子处理程序
+
+LRESULT CALLBACK EditProc(HWND, UINT, WPARAM, LPARAM);          // 编辑框消息处理程序
+LRESULT CALLBACK MonitorProc(HWND, UINT, WPARAM, LPARAM);       // 监控窗口消息处理程序
+void SetMicrophoneMute(bool mute);                 // 设置麦克风静音状态
+void PrintKey(WPARAM wParam);                // 输出按键
+void GetMicrophoneMute();                       // 获取麦克风静音状态
+
+
 void GetMicrophoneMute()
 {
     HRESULT hr = CoInitialize(NULL);
@@ -192,9 +198,9 @@ void SetMicrophoneMute(bool mute)
     }
     else
     {
-		// 如果设置静音状态成功，更新全局变量
-		g_isMuted = mute;
-	}
+        // 如果设置静音状态成功，更新全局变量
+        g_isMuted = mute;
+    }
 
     // 释放资源
     pEndpointVolume->Release();
@@ -218,7 +224,7 @@ LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
         }
     }
     return CallNextHookEx(hHook, nCode, wParam, lParam);
-}       //初始模式按住按键发言
+} // 初始模式按住按键发言
 LRESULT CALLBACK MouseSwiftProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
@@ -232,34 +238,35 @@ LRESULT CALLBACK MouseSwiftProc(int nCode, WPARAM wParam, LPARAM lParam)
         }
     }
     return CallNextHookEx(hHook, nCode, wParam, lParam);
-}	   //切换模式为按下按键切换是否静音
+} // 切换模式为按下按键切换是否静音
 LRESULT CALLBACK MouseEditProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
     {
         switch (wParam)
         {
-		case WM_XBUTTONDOWN:
-            //OutputDebugPrintf("mouseData: %d\n", ((MOUSEHOOKSTRUCTEX*)lParam)->mouseData);
-            //OutputDebugPrintf("KEYSTATE_WPARAM: %d\n", GET_KEYSTATE_WPARAM(wParam));
-            //OutputDebugPrintf("XBUTTON_WPARAM: %d\n", GET_XBUTTON_WPARAM(wParam));
-            //    if (GET_XBUTTON_WPARAM(wParam) == XBUTTON1)
-            //    {
-            //        OutputDebugPrintf("XBUTTON1 was pressed\n");
-            //        SetWindowText(hwndEdit, L"XBUTTON1");
-            //    }
-            //    else if (GET_XBUTTON_WPARAM(wParam) == XBUTTON2)
-            //    {
-            //        OutputDebugPrintf("XBUTTON2 was pressed\n");
-            //        SetWindowText(hwndEdit, L"XBUTTON2");
-            //    }
-            //    暂未找到区分鼠标侧键的方法,目前统一设置为XBUTTON1
+        case WM_XBUTTONDOWN:
+            // OutputDebugPrintf("mouseData: %d\n", ((MOUSEHOOKSTRUCTEX*)lParam)->mouseData);
+            // OutputDebugPrintf("KEYSTATE_WPARAM: %d\n", GET_KEYSTATE_WPARAM(wParam));
+            // OutputDebugPrintf("XBUTTON_WPARAM: %d\n", GET_XBUTTON_WPARAM(wParam));
+            //     if (GET_XBUTTON_WPARAM(wParam) == XBUTTON1)
+            //     {
+            //         OutputDebugPrintf("XBUTTON1 was pressed\n");
+            //         SetWindowText(hwndEdit, L"XBUTTON1");
+            //     }
+            //     else if (GET_XBUTTON_WPARAM(wParam) == XBUTTON2)
+            //     {
+            //         OutputDebugPrintf("XBUTTON2 was pressed\n");
+            //         SetWindowText(hwndEdit, L"XBUTTON2");
+            //     }
+            //     暂未找到区分鼠标侧键的方法,目前统一设置为XBUTTON1
             SetWindowText(hwndEdit, L"XBUTTON1");
-			break;
-		}
-	}
-	return CallNextHookEx(hHook, nCode, wParam, lParam);
-}//用于编辑框改绑
+            break;
+        }
+    }
+    return CallNextHookEx(hHook, nCode, wParam, lParam);
+} // 用于编辑框改绑
+
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
@@ -275,7 +282,7 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
                 // 取消静音
                 SetMicrophoneMute(false);
             }
-            
+
             break;
         case WM_KEYUP:
             // 检查是否是用户输入的按键被释放
@@ -289,39 +296,44 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
     }
 
     return CallNextHookEx(hHook, nCode, wParam, lParam);
-}//初始模式按住按键发言
+} // 初始模式按住按键发言
 LRESULT CALLBACK KeyboardSwiftProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode >= 0)
     {
         switch (wParam)
         {
-		case WM_KEYDOWN:
-			// 检查是否是用户输入的按键被按下
+        case WM_KEYDOWN:
+            // 检查是否是用户输入的按键被按下
             if (((KBDLLHOOKSTRUCT*)lParam)->vkCode == static_cast<DWORD>(VkKeyScan(*key)))
             {
-				// 切换静音状态
-				SetMicrophoneMute(!g_isMuted);
-			}
-			break;
-		}
-	}
-	return CallNextHookEx(hHook, nCode, wParam, lParam);
-}//切换模式为按下按键切换是否静音
-void PrintKey(WPARAM wParam) {
+                // 切换静音状态
+                SetMicrophoneMute(!g_isMuted);
+            }
+            break;
+        }
+    }
+    return CallNextHookEx(hHook, nCode, wParam, lParam);
+} // 切换模式为按下按键切换是否静音
+void PrintKey(WPARAM wParam)
+{
     wchar_t keyText[2];
     keyText[0] = L'\0';
     // 根据按下的键生成字符
-    if (MapVirtualKey(wParam, MAPVK_VK_TO_CHAR) != 0) {
+    if (MapVirtualKey(wParam, MAPVK_VK_TO_CHAR) != 0)
+    {
         keyText[0] = (wchar_t)MapVirtualKey(wParam, MAPVK_VK_TO_CHAR);
         keyText[1] = L'\0';
     }
     // 将字符显示在编辑框中
     SetWindowText(hwndEdit, keyText);
 }
-LRESULT CALLBACK KeyboardEditProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode >= 0) {
-        switch (wParam) {
+LRESULT CALLBACK KeyboardEditProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode >= 0)
+    {
+        switch (wParam)
+        {
         case WM_KEYDOWN:
             PrintKey(wParam);
             break;
@@ -329,8 +341,10 @@ LRESULT CALLBACK KeyboardEditProc(int nCode, WPARAM wParam, LPARAM lParam) {
     }
     return CallNextHookEx(hHook, nCode, wParam, lParam);
 };
-LRESULT CALLBACK EditProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    switch (message) {
+LRESULT CALLBACK EditProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
     case WM_KEYDOWN:
         wchar_t keyText[2];
         keyText[0] = (wchar_t)wParam;
@@ -404,8 +418,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
         windowX, windowY, windowWidth, windowHeight, nullptr, nullptr, hInstance, nullptr);
     // 在窗口创建时创建改绑按钮
     hwndChangeButton = CreateWindow(
-        L"BUTTON",                                              // 预定义的按钮类名
-        L"改绑",                                                // 按钮的文本
+        L"BUTTON",                                             // 预定义的按钮类名
+        L"改绑",                                               // 按钮的文本
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON, // 按钮的样式
         10,                                                    // 按钮的初始x坐标
         30,                                                    // 按钮的初始y坐标
@@ -437,33 +451,32 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
     hwndSwiftButton = CreateWindow(
-		L"BUTTON",
-		L"切换",
+        L"BUTTON",
+        L"切换",
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-		130, 30, 100, 30,
-		hWnd,
-		(HMENU)ID_BUTTON_SWIFT,
-		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-		NULL);
+        130, 30, 100, 30,
+        hWnd,
+        (HMENU)ID_BUTTON_SWIFT,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
     hwndMonitorButton = CreateWindow(
-		L"BUTTON",
-		L"监控",
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-		250, 30, 100, 30,
-		hWnd,
-		(HMENU)ID_BUTTON_MONITOR,
-		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-		NULL);
+        L"BUTTON",
+        L"监控",
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+        250, 30, 100, 30,
+        hWnd,
+        (HMENU)ID_BUTTON_MONITOR,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
     MonitorWindow = CreateWindow(
         monitorWindowClass,
         L"",
-        WS_OVERLAPPEDWINDOW,// 无标题栏、无操作项
+        WS_OVERLAPPEDWINDOW, // 无标题栏、无操作项
         screenWidth - 680, 50, 650, 450,
         nullptr,
         nullptr,
         hInst,
-        nullptr
-    );    
+        nullptr);
     if (!hWnd)
     {
         return FALSE;
@@ -530,8 +543,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, hInst, 0);
             }
             break;
-        case ID_EDIT_KEY: 
-            switch (HIWORD(wParam)) {
+        case ID_EDIT_KEY:
+            switch (HIWORD(wParam))
+            {
             case EN_SETFOCUS:
                 OutputDebugPrintf("EN_SETFOCUS\n");
                 hKeyboardEditHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardEditProc, hInst, 0);
@@ -543,27 +557,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 OutputDebugPrintf("EN_KILLFOCUS\n");
                 break;
             }
-             break;
+            break;
         case ID_BUTTON_SWIFT:
-            if (Mode == false) {
+            if (Mode == false)
+            {
                 UnhookWindowsHookEx(hHook);
                 if (key == L"XBUTTON1" || key == L"XBUTTON2")
                 {
-                hHook = SetWindowsHookEx(WH_MOUSE_LL, MouseSwiftProc, hInst, 0);
+                    hHook = SetWindowsHookEx(WH_MOUSE_LL, MouseSwiftProc, hInst, 0);
                 }
-                else {
+                else
+                {
                     hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardSwiftProc, hInst, 0);
                 }
             }
-            else {
+            else
+            {
                 UnhookWindowsHookEx(hHook);
                 if (key == L"XBUTTON1" || key == L"XBUTTON2")
                 {
-					hHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, hInst, 0);
-				}
-                else {
-					hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, hInst, 0);
-				}
+                    hHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, hInst, 0);
+                }
+                else
+                {
+                    hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, hInst, 0);
+                }
             }
             break;
         case ID_BUTTON_MONITOR:
@@ -571,12 +589,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             {
                 ShowWindow(MonitorWindow, SW_SHOW);
                 is_Monitor_Showed = true;
-			}
+            }
             else
             {
-				ShowWindow(MonitorWindow, SW_HIDE);
-				is_Monitor_Showed = false;
-			}
+                ShowWindow(MonitorWindow, SW_HIDE);
+                is_Monitor_Showed = false;
+            }
             break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
@@ -599,13 +617,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         }
         break;
     case WM_PAINT:
-        {
+    {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hWnd, &ps);
         // TODO: 在此处添加使用 hdc 的任何绘图代码...
         EndPaint(hWnd, &ps);
-        }
-        break;
+    }
+    break;
     case WM_DESTROY:
         PostQuitMessage(0);
         Shell_NotifyIcon(NIM_DELETE, &nid);
@@ -615,30 +633,32 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     }
     return 0;
 }
-LRESULT CALLBACK MonitorProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK MonitorProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
     static HBITMAP hBitmap;
-    static int     cxClient, cyClient, cxSource, cySource;
-    BITMAP         bitmap;
-    HDC            hdc, hdcMem;
-    HINSTANCE      hInstance;
-    PAINTSTRUCT    ps;
-    switch(message){ 
-    case(WM_CREATE):
+    static int cxClient, cyClient, cxSource, cySource;
+    BITMAP bitmap;
+    HDC hdc, hdcMem;
+    HINSTANCE hInstance;
+    PAINTSTRUCT ps;
+    switch (message)
+    {
+    case (WM_CREATE):
         hInstance = ((LPCREATESTRUCT)lParam)->hInstance;
         hBitmap = (HBITMAP)LoadImageW(hInstance, L"sample_640×426.bmp", IMAGE_BITMAP, 640, 426, LR_LOADFROMFILE);
         GetObject(hBitmap, sizeof(BITMAP), &bitmap);
         cxSource = bitmap.bmWidth;
         cySource = bitmap.bmHeight;
         break;
-    case(WM_PAINT):
+    case (WM_PAINT):
         hdc = BeginPaint(hWnd, &ps);
-        hdcMem = CreateCompatibleDC(hdc); 
+        hdcMem = CreateCompatibleDC(hdc);
         SelectObject(hdcMem, hBitmap);
-        BitBlt(hdc, 10, 10, cxSource, cySource, hdcMem, 0, 0, SRCCOPY); 
+        BitBlt(hdc, 10, 10, cxSource, cySource, hdcMem, 0, 0, SRCCOPY);
         DeleteDC(hdcMem);
         EndPaint(hWnd, &ps);
         break;
-    case(WM_DESTROY): 
+    case (WM_DESTROY):
         DeleteObject(hBitmap);
         PostQuitMessage(0);
         return 0;
@@ -648,9 +668,9 @@ LRESULT CALLBACK MonitorProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-                     _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPWSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
+    _In_opt_ HINSTANCE hPrevInstance,
+    _In_ LPWSTR lpCmdLine,
+    _In_ int nCmdShow)
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
@@ -661,14 +681,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_PUSHTOTALK, szWindowClass, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_Monitor, monitorWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);//主窗口类注册
-    MyRegisterMonitorClass(hInstance);//监控窗口类注册
+    MyRegisterClass(hInstance);        // 主窗口类注册
+    MyRegisterMonitorClass(hInstance); // 监控窗口类注册
     // 执行应用程序初始化:
     if (!InitInstance(hInstance, nCmdShow))
     {
         return FALSE;
     };
-    
+
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_PUSHTOTALK));
     hHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, hInstance, 0);
     OutputDebugPrintf("SetWindowsHookExMouseProc\n");
@@ -686,6 +706,5 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     SetMicrophoneMute(false);
     UnhookWindowsHookEx(hHook);
     OutputDebugPrintf("UnhookWindowsExhHook\n");
-    return (int) msg.wParam;
+    return (int)msg.wParam;
 }
-
